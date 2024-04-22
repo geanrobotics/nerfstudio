@@ -153,17 +153,10 @@ def _render_trajectory_video(
                     output_image = outputs[rendered_output_name]
                     is_depth = rendered_output_name.find("depth") != -1
                     if is_depth:
-                        output_image = (
-                            colormaps.apply_depth_colormap(
-                                output_image,
-                                accumulation=outputs["accumulation"],
-                                near_plane=depth_near_plane,
-                                far_plane=depth_far_plane,
-                                colormap_options=colormap_options,
-                            )
-                            .cpu()
-                            .numpy()
-                        )
+                       output_depth = output_image.cpu().numpy()
+                       output_depth = output_depth.squeeze(2)
+                       output_depth = (output_depth.astype(np.float32) * 1000).clip(0, 65535).astype(np.uint16)
+                       np.save(f"{output_image_dir}/{camera_idx:05d}.npy", output_depth)
                     else:
                         output_image = (
                             colormaps.apply_colormap(
@@ -174,14 +167,16 @@ def _render_trajectory_video(
                             .numpy()
                         )
                     render_image.append(output_image)
-                render_image = np.concatenate(render_image, axis=1)
-                if output_format == "images":
-                    if image_format == "png":
-                        media.write_image(output_image_dir / f"{camera_idx:05d}.png", render_image, fmt="png")
-                    if image_format == "jpeg":
-                        media.write_image(
-                            output_image_dir / f"{camera_idx:05d}.jpg", render_image, fmt="jpeg", quality=jpeg_quality
-                        )
+                if not is_depth:
+                    render_image = np.concatenate(render_image, axis=1)
+
+                    if output_format == "images":
+                        if image_format == "png":
+                            media.write_image(output_image_dir / f"{camera_idx:05d}.png", render_image, fmt="png")
+                        if image_format == "jpeg":
+                            media.write_image(
+                                output_image_dir / f"{camera_idx:05d}.jpg", render_image, fmt="jpeg", quality=jpeg_quality
+                            )
                 if output_format == "video":
                     if writer is None:
                         render_width = int(render_image.shape[1])
@@ -607,3 +602,4 @@ if __name__ == "__main__":
 def get_parser_fn():
     """Get the parser function for the sphinx docs."""
     return tyro.extras.get_parser(Commands)  # noqa
+
